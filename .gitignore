@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+pyenv/
+
+# Environment Variables & Secrets (Keep API keys hidden!)
+.env
+.env.local
+.env.*
+*.key
+*.pem
+credentials.json
+client_secret*.json
+
+# Agent Development Kit (ADK) files
+.adk/
+session.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS metadata
+.DS_Store
+Thumbs.db
