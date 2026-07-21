@@ -1,123 +1,36 @@
-"""
-Tools for reading from and writing to a Google Sheet.
-
-Auth: uses Application Default Credentials (your own gcloud user
-login), obtained via:
-  gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets
-No service account is required. Your Google account must have at
-least Editor access on the spreadsheet for writes to succeed.
-"""
-
 import os
-import google.auth
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+import csv
+import urllib.request
+import urllib.parse
+import io
 
 _SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID")
 
-_service = None
-
-
-def _get_service():
-    """Lazily build and cache the Sheets API client using ADC."""
-    global _service
-    if _service is not None:
-        return _service
-
-    try:
-        creds, _ = google.auth.default(scopes=SCOPES)
-    except Exception as e:
-        raise RuntimeError(
-            "No Application Default Credentials found. Run:\n"
-            "  gcloud auth application-default login "
-            "--scopes=openid,https://www.googleapis.com/auth/userinfo.email,"
-            "https://www.googleapis.com/auth/cloud-platform,"
-            "https://www.googleapis.com/auth/spreadsheets"
-        ) from e
-
-    _service = build("sheets", "v4", credentials=creds)
-    return _service
-
-
 def read_sheet(range_name: str) -> dict:
-    """Read values from the spreadsheet.
-
+    """Read values from a public spreadsheet without authentication.
+    
     Args:
-        range_name: A1 notation range, e.g. "Sheet1!A1:D20" or "Sheet1".
-
-    Returns:
-        dict with "values" (list of rows) on success, or "error".
+        range_name: A1 notation sheet name or range, e.g. "Sheet1" or "Sheet1!A1:D20".
+                    (Note: The public CSV export will fetch the entire specified sheet tab).
     """
     try:
-        service = _get_service()
-        result = (
-            service.spreadsheets()
-            .values()
-            .get(spreadsheetId=_SPREADSHEET_ID, range=range_name)
-            .execute()
+        # Extract the sheet name in case the agent passes a specific range (e.g., "Sheet1!A1:D20")
+        sheet_name = range_name.split("!")[0]
+        
+        # Build the public CSV export URL
+        url = (
+            f"https://docs.google.com/spreadsheets/d/{_SPREADSHEET_ID}/export"
+            f"?format=csv&sheet={urllib.parse.quote(sheet_name)}"
         )
-        return {"values": result.get("values", [])}
-    except HttpError as e:
-        return {"error": str(e)}
-
-
-def write_sheet(range_name: str, values: list) -> dict:
-    """Overwrite cells in the given range with new values.
-
-    Args:
-        range_name: A1 notation range, e.g. "Sheet1!A2:C2".
-        values: list of rows, each row a list of cell values,
-            e.g. [["Alice", 30, "SJ"]].
-
-    Returns:
-        dict with "updated_cells" on success, or "error".
-    """
-    try:
-        service = _get_service()
-        body = {"values": values}
-        result = (
-            service.spreadsheets()
-            .values()
-            .update(
-                spreadsheetId=_SPREADSHEET_ID,
-                range=range_name,
-                valueInputOption="USER_ENTERED",
-                body=body,
-            )
-            .execute()
-        )
-        return {"updated_cells": result.get("updatedCells")}
-    except HttpError as e:
-        return {"error": str(e)}
-
-
-def append_row(range_name: str, values: list) -> dict:
-    """Append a new row after the last row of data in the range.
-
-    Args:
-        range_name: A1 notation range/sheet name, e.g. "Sheet1".
-        values: a single row, e.g. ["Bob", 25, "SF"].
-
-    Returns:
-        dict with "updates" info on success, or "error".
-    """
-    try:
-        service = _get_service()
-        body = {"values": [values]}
-        result = (
-            service.spreadsheets()
-            .values()
-            .append(
-                spreadsheetId=_SPREADSHEET_ID,
-                range=range_name,
-                valueInputOption="USER_ENTERED",
-                insertDataOption="INSERT_ROWS",
-                body=body,
-            )
-            .execute()
-        )
-        return {"updates": result.get("updates")}
-    except HttpError as e:
+        
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req) as response:
+            content = response.read().decode('utf-8')
+            
+        # Parse the CSV data into a list of rows
+        reader = csv.reader(io.StringIO(content))
+        values = list(reader)
+        
+        return {"values": values}
+    except Exception as e:
         return {"error": str(e)}

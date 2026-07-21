@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 from google.adk.agents import Agent
 
-from .sheets_tools import read_sheet, write_sheet, append_row
+from .sheets_tools import read_sheet
 
 load_dotenv()
 
@@ -24,5 +24,5 @@ root_agent = Agent(
         "calling a write tool if the user's intent is ambiguous. "
         "Report back the result of each tool call clearly."
     ),
-    tools=[read_sheet, write_sheet, append_row],
+    tools=[read_sheet],
 )
