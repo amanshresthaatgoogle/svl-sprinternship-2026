@@ -1,0 +1,6 @@
+google-adk>=2.0
+pydantic
+google-genai
+google-auth
+google-api-python-client
+openpyxl
