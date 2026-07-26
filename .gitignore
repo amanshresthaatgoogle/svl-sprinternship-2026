@@ -35,3 +35,8 @@ session.db
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Executables & Large Binaries
+toolbox.exe
+*.exe
+
