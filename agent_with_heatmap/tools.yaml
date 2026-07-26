@@ -1,17 +1,17 @@
 sources:
-  heatmap-db:
+  heatmap_db:
     kind: cloud-sql-mysql
     project: ${GOOGLE_CLOUD_PROJECT}
-    region: us-central1
-    instance: free-trial-first-project
-    database: heatmap_db
-    user: root
+    region: ${DB_REGION}
+    instance: ${GOOGLE_CLOUD_DB_INSTANCE_NAME}
+    database: ${DB_NAME}
+    user: ${DB_USER}
     password: ${DB_PASSWORD}
 
 tools:
   resolve_vm_identifier:
     kind: mysql-sql
-    source: heatmap-db
+    source: heatmap_db
     description: >
       Given a raw VM identifier or phrase as the TAM said it — a single family name, a compound
       identifier joined by underscore/space/hyphen, or two separate words — returns the matching
@@ -34,7 +34,7 @@ tools:
 
   get_heatmap_color:
     kind: mysql-sql
-    source: heatmap-db
+    source: heatmap_db
     description: >
       Calculates the average percentage_sold across all matching rows in core_count
       for the given region and vm_family (plus optional zone and machine_domain filters),
