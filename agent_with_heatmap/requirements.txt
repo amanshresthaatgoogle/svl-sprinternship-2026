@@ -1,6 +1,7 @@
 google-adk
 google-api-python-client
 google-auth
+google-genai
 python-dotenv
 openpyxl
 pymysql

@@ -9,50 +9,28 @@ sources:
     password: ${DB_PASSWORD}
 
 tools:
-  resolve_vm_identifier:
-    kind: mysql-sql
-    source: heatmap_db
-    description: >
-      Given a raw VM identifier or phrase as the TAM said it — a single family name, a compound
-      identifier joined by underscore/space/hyphen, or two separate words — returns the matching
-      vm_family and machine_domain values as they actually exist in the database.
-    parameters:
-      - name: raw_identifier
-        type: string
-        description: >
-          The VM identifier(s) exactly as given by the TAM. If the TAM gave two separate words
-          (e.g. 'n2d viperlitepod'), join them with a single underscore before passing
-          (e.g. 'n2d_viperlitepod'). Otherwise pass as-is, unmodified.
-    statement: |
-      SELECT DISTINCT vm_family, machine_domain
-      FROM core_count, (
-        SELECT REPLACE(REPLACE(?, '-', '_'), ' ', '_') AS p_raw
-      ) AS p
-      WHERE REPLACE(REPLACE(CONCAT(vm_family, '_', machine_domain), '-', '_'), ' ', '_') = p_raw
-         OR REPLACE(machine_domain, ' ', '_') = p_raw
-         OR REPLACE(vm_family, ' ', '_') = p_raw;
-
   get_heatmap_color:
     kind: mysql-sql
     source: heatmap_db
     description: >
-      Calculates the average percentage_sold across all matching rows in core_count
-      for the given region and vm_family (plus optional zone and machine_domain filters),
-      and returns the resulting capacity heatmap color ('green', 'yellow', 'red', 'very red', or 'no_data').
+      Given a region, optional zone, and a raw VM identifier as the TAM said it (a bare family
+      name like 'c3', or a compound family+domain identifier like 'c3_standard_lssd' — join with
+      underscore first if the TAM said it as two separate words, e.g. 'n2d viperlitepod' ->
+      'n2d_viperlitepod'), resolves it against the database and returns the averaged capacity
+      heatmap color ('green', 'yellow', 'red', 'very red', or 'no_data').
     parameters:
       - name: region
         type: string
         description: The Google Cloud region name (e.g., 'australia-southeast1'). Required.
-      - name: vm_family
+      - name: raw_identifier
         type: string
-        description: The VM family name (e.g., 'c3'). Required.
+        description: >
+          The VM identifier exactly as given by the TAM. Join two separate words with a single
+          underscore before passing (e.g. 'n2d viperlitepod' -> 'n2d_viperlitepod'). Otherwise
+          pass as-is, unmodified.
       - name: zone
         type: string
         description: The Google Cloud zone name (e.g., 'australia-southeast1-a'). Optional.
-        required: false
-      - name: machine_domain
-        type: string
-        description: Optional machine domain filter name.
         required: false
     statement: |
       SELECT 
@@ -63,8 +41,15 @@ tools:
           WHEN AVG(percentage_sold) <= 0.90 THEN 'red'
           ELSE 'very red'
         END AS color
-      FROM core_count, (SELECT ? AS p_region, ? AS p_vm_family, ? AS p_zone, ? AS p_machine_domain) AS p
+      FROM core_count, (
+        SELECT ? AS p_region,
+               REPLACE(REPLACE(?, '-', '_'), ' ', '_') AS p_raw,
+               ? AS p_zone
+      ) AS p
       WHERE region = p_region
-        AND vm_family = p_vm_family
         AND (p_zone IS NULL OR p_zone = '' OR zone = p_zone)
-        AND (p_machine_domain IS NULL OR p_machine_domain = '' OR machine_domain = p_machine_domain);
+        AND (
+          REPLACE(REPLACE(CONCAT(vm_family, '_', machine_domain), '-', '_'), ' ', '_') = p_raw
+          OR REPLACE(machine_domain, ' ', '_') = p_raw
+          OR REPLACE(vm_family, ' ', '_') = p_raw
+        );
