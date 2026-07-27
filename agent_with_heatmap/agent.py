@@ -1,20 +1,60 @@
+import json
+
 from google.adk import Agent
 from google.adk.tools.mcp_tool.mcp_session_manager import (
     StreamableHTTPServerParams,
 )
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
+from google.genai import types
 
 # Connects to the MCP Toolbox server
 toolkit = MCPToolset(
     connection_params=StreamableHTTPServerParams(
         url="http://127.0.0.1:5000/mcp",
     ),
-    tool_filter=["get_heatmap_color", "resolve_vm_identifier"],
+    tool_filter=["get_heatmap_color"],
 )
+
+
+def format_heatmap_response(tool, args, tool_context, tool_response):
+    """
+    Intercepts get_heatmap_color's raw result and builds the final
+    TAM-facing reply directly, skipping the second LLM round trip.
+    """
+    print("CALLBACK FIRED:", tool.name)
+    print("RAW TOOL RESPONSE:", tool_response)
+
+    if tool.name != "get_heatmap_color":
+        return None  # let other tools (if any) fall through to normal handling
+
+    color = None
+    try:
+        if isinstance(tool_response, dict) and not tool_response.get("isError"):
+            inner_text = tool_response["content"][0]["text"]
+            color = json.loads(inner_text).get("color")
+    except (KeyError, IndexError, json.JSONDecodeError, TypeError) as e:
+        print("FAILED TO PARSE TOOL RESPONSE:", e)
+
+    region = args.get("region", "")
+    zone = args.get("zone", "")
+    identifier = args.get("raw_identifier", "")
+    location = zone if zone else region
+
+    if not color or color == "no_data":
+        text = f"No capacity data is available for {identifier} in {location}."
+    else:
+        text = f"{identifier} in {location} is {color} right now."
+
+    tool_context.actions.skip_summarization = True
+    return text
+
 
 root_agent = Agent(
     name="heatmap_agent",
     model="gemini-2.5-flash",
+    generate_content_config=types.GenerateContentConfig(
+        thinking_config=types.ThinkingConfig(thinking_budget=0)
+    ),
     description="An agent that reports capacity heatmap colors of Google Cloud VM families in specific regions and zones using a Cloud SQL MySQL database via MCP.",
     instruction=(
         "You are an expert Google Cloud capacity and VM availability advisor agent. "
@@ -22,45 +62,41 @@ root_agent = Agent(
         "VM families in various locations using a color heatmap.\n\n"
 
         "### REQUIRED PARAMETERS:\n"
-        "1. `region` and `vm_family` are ALWAYS mandatory. If either is missing from the TAM's query, "
-        "stop immediately and ask for clarification. Do NOT guess or default either.\n"
-        "2. `zone` is optional — pass it only if the TAM explicitly gives a zone (e.g. 'australia-southeast1-a'). "
-        "A zone is more specific than a region; do NOT treat a zone as satisfying the region requirement, "
-        "and do NOT ask the TAM to also provide a region if they've only given a zone in a region they've already specified.\n"
-        "3. `machine_domain` is optional — pass it only if the TAM explicitly gives one, in addition to `vm_family`.\n"
-        "4. Never substitute one parameter for another. `vm_family` and `machine_domain` are independent filters, "
-        "not alternates for each other.\n\n"
+        "1. `region` and a VM identifier are ALWAYS mandatory. If BOTH are missing, or the VM identifier "
+        "is missing, stop immediately and ask for clarification. Do NOT guess or default the VM identifier.\n"
+        "2. `zone` is optional. Google Cloud zones always follow the pattern REGION followed by a "
+        "dash and a single letter (e.g. zone 'europe-north1-a' belongs to region 'europe-north1'). "
+        "If the TAM gives ONLY a zone with no separate region, derive the region yourself by "
+        "stripping the zone's trailing dash-letter suffix, and pass BOTH the derived region and "
+        "the given zone to `get_heatmap_color`. Do NOT ask the TAM for the region separately in "
+        "this case.\n"
+        "3. If the TAM gives neither a region nor a zone, stop and ask for clarification.\n\n"
 
-        "### PARAMETER EXTRACTION RULES:\n"
-        "1. For EVERY VM identifier the TAM gives — whether it looks like a bare family name ('c3'), a "
-        "compound word ('c3_standard_lssd'), hyphenated, or two separate words ('n2d viperlitepod') — "
-        "ALWAYS call `resolve_vm_identifier` first. Never skip this step, and never judge for yourself "
-        "whether an identifier is 'simple enough' to skip resolution — you do not know the full list of "
-        "valid family names, so you cannot make that judgment reliably.\n"
-        "2. If the TAM gave two separate words for the identifier, join them with a single underscore "
-        "before passing as `raw_identifier` (e.g. 'n2d viperlitepod' -> 'n2d_viperlitepod'). Otherwise "
-        "pass the identifier exactly as given.\n"
-        "3. Use the `vm_family` and `machine_domain` values `resolve_vm_identifier` returns for your "
-        "`get_heatmap_color` call — never guess the split yourself, and never call `get_heatmap_color` "
-        "without first calling `resolve_vm_identifier`.\n"
-        "4. If `resolve_vm_identifier` returns zero rows, tell the TAM you don't recognize that identifier "
-        "rather than guessing.\n"
-        "5. If it returns more than one row, ask the TAM to clarify which machine domain they mean.\n"
+        "### VM IDENTIFIER PASSING:\n"
+        "1. Pass the TAM's VM identifier as `raw_identifier` to `get_heatmap_color` exactly as given — "
+        "the tool itself resolves bare family names, compound identifiers, and unrelated "
+        "family/domain naming (do not attempt to split, parse, or guess the identifier yourself).\n"
+        "2. The ONLY transformation you make: if the TAM said the identifier as two separate words "
+        "(e.g. 'n2d viperlitepod'), join them with a single underscore before passing "
+        "('n2d_viperlitepod'). Otherwise pass it unmodified.\n\n"
 
         "### CRITICAL COMMUNICATION RULES:\n"
         "1. ABSOLUTELY CANNOT SAY ANY NUMBER OR PERCENTAGE back to the TAM under any circumstances. "
         "You must ONLY reply using the color returned directly by the `get_heatmap_color` tool.\n"
-        "2. Your reply must specify the vm_family, the location requested (region, and zone if given), "
-        "and the availability color clearly (e.g. 'c3 in australia-southeast1 is red right now').\n"
-        "3. If the tool returns 'no_data', state that no capacity data is available matching that vm_family and location.\n"
+        "2. Your reply must specify the VM identifier, the location requested (region, and zone if "
+        "given), and the availability color clearly (e.g. 'c3 in australia-southeast1 is red right now').\n"
+        "3. If the tool returns 'no_data', state that no capacity data is available matching that "
+        "identifier and location.\n"
         "4. Always reference the exact location string(s) requested by the TAM.\n\n"
 
         "### OPERATIONAL WORKFLOW:\n"
-        "1. Extract parameters from the TAM's query: `region` (required), `vm_family` (required), "
-        "`zone` (optional), `machine_domain` (optional).\n"
-        "2. If `region` is missing OR `vm_family` is missing, stop and ask for clarification.\n"
-        "3. Call `get_heatmap_color` tool with whichever of the 4 parameters were provided.\n"
-        "4. Reply to the TAM using ONLY the returned color string, vm_family, and location."
+        "1. Extract parameters from the TAM's query: `region` (required, derive from zone if needed), "
+        "VM identifier (required), `zone` (optional).\n"
+        "2. If neither `region` nor `zone` was given, OR the VM identifier is missing, stop and ask "
+        "for clarification.\n"
+        "3. Call `get_heatmap_color` once with whichever parameters were provided.\n"
+        "4. Reply to the TAM using ONLY the returned color string, VM identifier, and location."
     ),
     tools=[toolkit],
+    after_tool_callback=format_heatmap_response,
 )
