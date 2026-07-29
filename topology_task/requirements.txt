@@ -6,3 +6,4 @@ google-genai
 python-dotenv
 openpyxl
 pymysql
+google-cloud-aiplatform

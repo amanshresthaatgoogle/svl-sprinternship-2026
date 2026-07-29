@@ -47,3 +47,9 @@ urllib3==2.7.0
 uvicorn==0.51.0
 watchdog==6.0.0
 websockets==15.0.1
+mcp<2.0.0
+google-api-python-client
+openpyxl
+pymysql
+google-cloud-aiplatform
+

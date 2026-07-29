@@ -4,7 +4,7 @@ import certifi
 import logging
 from google.adk.agents import Agent
 
-logger = logging.getLogger(name)
+logger = logging.getLogger(__name__)
 
 def fetch_url(url: str) -> str:
     """
