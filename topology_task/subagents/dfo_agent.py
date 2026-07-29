@@ -17,25 +17,7 @@ DATABASE_NAME = os.environ.get("DB_NAME")
 # ==========================================
 # 1. DEFINE BOTTOM-TIER SUBAGENT FIRST
 # ==========================================
-rag_corpora_string = os.getenv("RAG_CORPORA_STRING")
 
-company_policies_retrieval = VertexAiRagRetrieval(
-    name="dfo_vp_tool",
-    description="Tool to retrieve details on DFO value play.",
-    rag_resources=[rag.RagResource(rag_corpus=rag_corpora_string)],
-)
-
-rag_agent = Agent(
-    name="rag_agent",
-    model="gemini-2.5-flash",
-    description="An agent that retrieves and explains details on DFO value play.",
-    instruction="Answer questions on DFO value play using retrieved documentation.",
-    tools=[company_policies_retrieval],
-)
-
-# ==========================================
-# 2. DEFINE MIDDLE-TIER AGENT SECOND
-# ==========================================
 credentials, project_id = google.auth.default(
     scopes=["https://www.googleapis.com/auth/cloud-platform"]
 )
@@ -84,6 +66,25 @@ heatmap_agent = Agent(
         "3. If two words are provided for identifier (e.g., 'n2d viperlitepod'), join them with an underscore ('n2d_viperlitepod').\n"
         "4. Absolutely DO NOT output any raw numbers or percentages. Reply ONLY using the color returned, identifier, and location."
     ),
-    tools=[toolkit],
-    sub_agents=[rag_agent]
+    tools=[toolkit],  
+)
+
+# ==========================================
+# 2. DEFINE MIDDLE-TIER AGENT SECOND
+# ==========================================
+rag_corpora_string = os.environ["RAG_CORPORA_STRING2"]
+
+dfo_retrieval = VertexAiRagRetrieval(
+    name="dfo_vp_tool",
+    description="Tool to retrieve details on DFO value play.",
+    rag_corpora=[rag_corpora_string],
+)
+
+dfo_rag_agent = Agent(
+    name="dfo_rag_agent",
+    model="gemini-2.5-flash",
+    description="An agent that retrieves and explains details on DFO value play.",
+    instruction="Answer questions on DFO value play using retrieved documentation.",
+    tools=[dfo_retrieval],
+    sub_agents=[heatmap_agent]
 )

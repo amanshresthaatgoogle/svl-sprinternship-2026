@@ -1,5 +1,5 @@
 from google.adk.agents import Agent
-from .subagents.dfo_agent import heatmap_agent
+from .subagents.dfo_agent import dfo_rag_agent
 from .subagents.genai_vpagent import genai_vpagent
 
 root_agent = Agent(
@@ -14,5 +14,5 @@ root_agent = Agent(
         "3. For questions about GenAI, generative AI tools, or related capabilities, delegate to `genai_agent`.\n"
         "4. Do not answer directly if a query falls into any of these categories; always delegate to the respective subagent."
     ),
-    sub_agents=[heatmap_agent, genai_vpagent]
+    sub_agents=[dfo_rag_agent, genai_vpagent]
 )

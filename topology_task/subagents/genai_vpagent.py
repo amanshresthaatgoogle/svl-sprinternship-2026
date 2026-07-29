@@ -6,15 +6,6 @@ from .fetch_agent import fetch_agent
 from .search_agent import search_agent
 from vertexai.preview import rag
 
-genai_rag_corpora_string = os.environ["RAG_CORPORA_STRING"]  # actually pull it from env
-
-genai_vp_retrieval = VertexAiRagRetrieval(
-    name='genai_vp',
-    description='Details on gen ai inference.',
-    rag_corpora=[genai_rag_corpora_string],  # plain list, not a set
-)
-
-
 genai_vpagent = Agent(
     name="genai_vpagent",
     model="gemini-2.5-flash",
