@@ -5,16 +5,16 @@ from google.adk.agents import Agent
 
 genai_rag_corpora_string = os.environ["RAG_CORPORA_STRING"]  # actually pull it from env
 
-company_policies_retrieval = VertexAiRagRetrieval(
-    name='dfo_vp',
-    description='Details on DFO value play.',
+genai_inference_retrieval = VertexAiRagRetrieval(
+    name='genai_inf',
+    description='Details on Generative AI inference.',
     rag_corpora=[genai_rag_corpora_string],  # plain list, not a set
 )
 
 genai_vp_rag_agent = Agent(
     name='genai_vp_rag_agent',
     model='gemini-2.5-flash',
-    instruction='gives details on dfo value play.',
-    description='gives details on dfo value play.',
-    tools=[company_policies_retrieval],
+    instruction='gives details on generative ai inference.',
+    description='gives details on generative ai inference.',
+    tools=[genai_inference_retrieval],
 )
