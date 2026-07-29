@@ -65,7 +65,7 @@ def fetch_url(url:str) ->str:
 
 fetch_agent = Agent(
     name="fetch_agent",
-    model="gemini-3.5-flash",
+    model="gemini-2.5-flash",
     description="agent to get contents from URL",
     instruction=("""
     

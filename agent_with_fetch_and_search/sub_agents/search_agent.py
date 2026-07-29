@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 search_agent = Agent(
     name="search_agent",
-    model="gemini-3.5-flash",
+    model="gemini-2.5-flash",
     description="agent to get contents from URL",
     instruction=("""
     run the query to the google_search tool and respond. don't respond without a search result

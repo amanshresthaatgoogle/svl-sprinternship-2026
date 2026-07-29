@@ -8,6 +8,9 @@ import logging
 from google.adk.agents import SequentialAgent, LlmAgent, Agent
 from google.adk.tools import google_search,AgentTool
 
+# START ADDED
+from vertexai.preview.reasoning_engines import AdkApp
+# END ADDED
 
 from .sub_agents.search_agent import search_agent
 from .sub_agents.fetch_agent import fetch_agent
@@ -35,7 +38,7 @@ def fetch_url(url:str) ->str:
 
 root_agent = Agent(
     name="root_agent",
-    model="gemini-3.5-flash",
+    model="gemini-2.5-flash",
     description="agent to get contents from URL",
     instruction=("""
 
@@ -51,12 +54,20 @@ root_agent = Agent(
     ),
 
     sub_agents = [search_agent, fetch_agent],
-    # tools=[
-    #     AgentTool(agent=search_agent),
-    #     # Your other custom Python function tools can safely sit here!
-    # ]
+    tools=[
+        AgentTool(agent=search_agent),
+        AgentTool(agent=fetch_agent),
+    ]
 
 )
+
+# START ADDED
+# Wrap your root_agent in AdkApp and set enable_tracing=True
+app = AdkApp(
+    agent=root_agent,
+    enable_tracing=True,
+)
+# END ADDED
 
 
 # instruction=("""
