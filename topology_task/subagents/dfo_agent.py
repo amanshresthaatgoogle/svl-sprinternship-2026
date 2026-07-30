@@ -85,9 +85,10 @@ heatmap_agent = Agent(
         "   - Filter or present results showing regions with 'green' or 'yellow' status.\n"
         "3. **Multi-region/All-region heatmap** (e.g., 'heatmap of n4 in all us regions'):\n"
         "   - Query `SELECT region, <color_case> FROM core_count WHERE <machine_matching> AND region LIKE 'us-%' GROUP BY region`.\n\n"
-        "### RULES:\n"
+        "### STRICT RULES & DATA PRIVACY:\n"
         "1. Always pass the mandatory project, instance, and database parameters to `execute_sql_readonly`.\n"
-        "2. DO NOT output raw percentage numbers or raw data values to the user. Present ONLY the calculated colors, machine identifier, and region/zone names."
+        "2. DO NOT output raw percentage numbers or raw data values to the user. Present ONLY the calculated colors, machine identifier, and region/zone names.\n"
+        "3. If a requested location returns 'red' or 'very red', proactively suggest alternative 'green' or 'yellow' regions/zones."
     ),
     tools=[toolkit],
 )
@@ -111,19 +112,23 @@ dfo_rag_agent = Agent(
         "alternative machine/region availability lookups, and capacity heatmaps."
     ),
     instruction=(
-    "You are an expert Google Cloud DFO (Demand & Fulfillment Optimization) Advisor.\n\n"
-    "### ROUTING & TOOL PRIORITY:\n"
-    "1. **Capacity, heatmap, or region/zone availability questions** — DELEGATE IMMEDIATELY to `heatmap_agent`. "
-    "This is the correct tool for these questions, not a fallback. Do not rely on `dfo_vp_tool` for live capacity data.\n"
-    "2. **DFO conceptual & strategy questions** (value play stages, spillover policies, optimization frameworks) — "
-    "use `dfo_vp_tool` first.\n"
-    "3. **Fallback search** — ONLY if `dfo_vp_tool` lacks the answer, use `search_agent` restricted to site:cloud.google.com.\n"
-    "4. **Fetch** — use `fetch_agent` only for the specific documentation URLs it's scoped to.\n"
-   "5. **Out of scope (GenAI/Inference)** — for questions on 429 errors, Provisioned Throughput (PT), GSU estimation, "
-    "or GenAI models (Gemini/Nano), you MUST transfer control back to `root_agent`. Do not attempt to answer these "
-    "yourself, and do not name `genai_vpagent` directly — transfer to your parent, and it will route the query correctly.\n"
+        "You are an expert Google Cloud DFO (Demand & Fulfillment Optimization) Advisor.\n\n"
+        "### ROUTING & TOOL PRIORITY:\n"
+        "1. **Capacity, heatmap, or region/zone availability questions** — DELEGATE IMMEDIATELY to `heatmap_agent`. "
+        "This is the correct tool for these questions, not a fallback. Do not rely on `dfo_vp_tool` for live capacity data.\n"
+        "2. **DFO conceptual & strategy questions** (value play stages, spillover policies, optimization frameworks) — "
+        "use `dfo_vp_tool` first.\n"
+        "3. **Fallback search** — ONLY if `dfo_vp_tool` lacks the answer, use `search_agent` restricted to site:cloud.google.com.\n"
+        "4. **Fetch** — use `fetch_agent` only for the specific documentation URLs it's scoped to.\n"
+        "5. **Out of scope (GenAI/Inference)** — for questions on 429 errors, Provisioned Throughput (PT), GSU estimation, "
+        "or GenAI models (Gemini/Nano), you MUST transfer control back to `root_agent`. Do not attempt to answer these "
+        "yourself, and do not name `genai_vpagent` directly — transfer to your parent, and it will route the query correctly.\n\n"
+        "### OUTPUT FORMAT:\n"
+        "- Format responses in clean, bulleted Markdown with clear bold section headers.\n"
+        "- When capacity status is constrained (`red`), include actionable DFO remediation recommendations."
     ),
-    tools=[dfo_retrieval,
+    tools=[
+        dfo_retrieval,
         AgentTool(agent=search_agent),
         AgentTool(agent=fetch_agent),
     ],
